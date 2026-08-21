@@ -11,6 +11,7 @@ function renderProvider(provider: ProviderProbe): string[] {
     `  installed: ${provider.installed ? "yes" : "no"}`,
     `  version: ${provider.version ?? "unknown"}`,
     `  authenticated: ${yesNoUnknown(provider.authenticated)}`,
+    `  auth mode: ${provider.authMode}`,
     `  reachable: ${yesNoUnknown(provider.reachable)}`,
     `  runnable: ${provider.canRun ? "yes" : "no"}`,
     `  usage: ${provider.usage.state} (${provider.usage.source})`

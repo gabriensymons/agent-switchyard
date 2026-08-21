@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { extractJsonObject } from "../core/json.js";
-import type { Diagnostic, ProviderProbe } from "../core/types.js";
+import type {
+  Diagnostic,
+  ProviderAuthMode,
+  ProviderProbe
+} from "../core/types.js";
 import type { ProbeContext, ProviderAdapter } from "./provider.js";
 import { cleanVersion, unknownUsage } from "./shared.js";
 
 const codexCheckSchema = z.object({
   status: z.enum(["ok", "warning", "fail"]),
   summary: z.string(),
+  details: z.record(z.string(), z.string()).optional(),
   remediation: z.string().nullable().optional()
 });
 
@@ -25,6 +30,18 @@ function diagnosticsFromDoctor(
       summary: check.summary,
       ...(check.remediation ? { remediation: check.remediation } : {})
     }));
+}
+
+function codexAuthMode(
+  auth: z.infer<typeof codexCheckSchema> | undefined
+): ProviderAuthMode {
+  const value = auth?.details?.["stored auth mode"]?.toLowerCase();
+  if (value === "api_key") return "api_key";
+  if (value === "access_token") return "access_token";
+  if (value?.includes("chatgpt") || value?.includes("subscription")) {
+    return "subscription";
+  }
+  return "unknown";
 }
 
 export class CodexAdapter implements ProviderAdapter {
@@ -64,6 +81,7 @@ export class CodexAdapter implements ProviderAdapter {
         state: "not_installed",
         installed: false,
         authenticated: null,
+        authMode: "unknown",
         reachable: null,
         canRun: false,
         diagnostics: [
@@ -91,6 +109,7 @@ export class CodexAdapter implements ProviderAdapter {
         state: "error",
         installed: true,
         authenticated: null,
+        authMode: "unknown",
         reachable: null,
         canRun: false,
         ...(version ? { version } : {}),
@@ -111,6 +130,7 @@ export class CodexAdapter implements ProviderAdapter {
       const auth = doctor.checks["auth.credentials"];
       const reachability = doctor.checks["network.provider_reachability"];
       const authenticated = auth ? auth.status === "ok" : null;
+      const authMode = codexAuthMode(auth);
       const reachable = reachability ? reachability.status === "ok" : null;
       const canRun = authenticated === true && reachable !== false;
 
@@ -124,6 +144,7 @@ export class CodexAdapter implements ProviderAdapter {
         state,
         installed: true,
         authenticated,
+        authMode,
         reachable,
         canRun,
         ...(version ? { version } : {}),
@@ -135,6 +156,7 @@ export class CodexAdapter implements ProviderAdapter {
         state: "error",
         installed: true,
         authenticated: null,
+        authMode: "unknown",
         reachable: null,
         canRun: false,
         ...(version ? { version } : {}),

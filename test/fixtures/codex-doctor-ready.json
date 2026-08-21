@@ -6,6 +6,9 @@
     "auth.credentials": {
       "status": "ok",
       "summary": "auth is configured",
+      "details": {
+        "stored auth mode": "chatgpt"
+      },
       "remediation": null
     },
     "network.provider_reachability": {

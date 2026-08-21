@@ -43,6 +43,7 @@ describe("CodexAdapter", () => {
       state: "ready",
       installed: true,
       authenticated: true,
+      authMode: "subscription",
       reachable: true,
       canRun: true,
       version: "codex-cli 0.148.0-alpha.15",
@@ -73,6 +74,7 @@ describe("CodexAdapter", () => {
     expect(probe).toMatchObject({
       state: "not_installed",
       installed: false,
+      authMode: "unknown",
       canRun: false
     });
   });

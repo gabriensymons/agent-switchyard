@@ -15,6 +15,12 @@ export type ProviderState =
   | "unreachable"
   | "error";
 
+export type ProviderAuthMode =
+  | "subscription"
+  | "api_key"
+  | "access_token"
+  | "unknown";
+
 export interface UsageWindow {
   name: string;
   usedPercent?: number;
@@ -45,6 +51,7 @@ export interface ProviderProbe {
   state: ProviderState;
   installed: boolean;
   authenticated: boolean | null;
+  authMode: ProviderAuthMode;
   reachable: boolean | null;
   canRun: boolean;
   version?: string;

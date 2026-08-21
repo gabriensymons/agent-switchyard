@@ -27,6 +27,7 @@ describe("renderDoctor", () => {
           state: "ready",
           installed: true,
           authenticated: true,
+          authMode: "subscription",
           reachable: true,
           canRun: true,
           capabilities: {

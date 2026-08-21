@@ -12,12 +12,14 @@ Observed on 2026-08-21:
 
 | Provider | Local result | Machine-readable health/auth | Machine-readable quota |
 | --- | --- | --- | --- |
-| Codex | Installed (`0.148.0-alpha.15`) | `codex doctor --json` | Not observed |
+| Codex | Installed (`0.148.0-alpha.15`), API-key auth | `codex doctor --json` | Not observed |
 | Claude Code | Not installed | To verify after installation | Not observed |
 
 Codex's doctor command can exit nonzero while still returning valid redacted JSON because unrelated checks may fail. The adapter therefore parses the report first and evaluates the authentication and provider-reachability checks explicitly.
 
 The live Codex experiment completed successfully against the disposable fixture in 4.3 seconds. It produced `thread.started`, `turn.started`, `item.completed`, and `turn.completed` events, observed the expected marker, and exposed token counts. The summarized report discarded the thread identifier and transcript. Token counts describe one turn; they do not establish remaining subscription allowance or reset time.
+
+The local Codex installation used API-key authentication for this experiment. That validates the process and event protocol, but not ChatGPT Business subscription quota behavior. Authentication mode is therefore part of the normalized provider report and must gate any subscription-specific quota policy.
 
 ## Normalized probe contract
 

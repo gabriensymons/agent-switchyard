@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { extractJsonObject } from "../core/json.js";
-import type { Diagnostic, ProviderProbe } from "../core/types.js";
+import type {
+  Diagnostic,
+  ProviderAuthMode,
+  ProviderProbe
+} from "../core/types.js";
 import type { ProbeContext, ProviderAdapter } from "./provider.js";
 import { cleanVersion, unknownUsage } from "./shared.js";
 
 const claudeAuthSchema = z
   .object({
     authenticated: z.boolean().optional(),
+    authMethod: z.string().optional(),
     loggedIn: z.boolean().optional(),
     status: z.string().optional()
   })
@@ -21,6 +26,16 @@ function authValue(value: z.infer<typeof claudeAuthSchema>): boolean | null {
     if (["unauthenticated", "logged_out", "not_logged_in"].includes(normalized)) return false;
   }
   return null;
+}
+
+function authMode(value: z.infer<typeof claudeAuthSchema>): ProviderAuthMode {
+  const method = value.authMethod?.toLowerCase();
+  if (method?.includes("api")) return "api_key";
+  if (method?.includes("token")) return "access_token";
+  if (method?.includes("subscription") || method?.includes("oauth")) {
+    return "subscription";
+  }
+  return "unknown";
 }
 
 export class ClaudeAdapter implements ProviderAdapter {
@@ -60,6 +75,7 @@ export class ClaudeAdapter implements ProviderAdapter {
         state: "not_installed",
         installed: false,
         authenticated: null,
+        authMode: "unknown",
         reachable: null,
         canRun: false,
         diagnostics: [
@@ -82,6 +98,7 @@ export class ClaudeAdapter implements ProviderAdapter {
     });
     const diagnostics: Diagnostic[] = [];
     let authenticated: boolean | null = null;
+    let detectedAuthMode: ProviderAuthMode = "unknown";
 
     if (authResult.timedOut) {
       diagnostics.push({
@@ -95,6 +112,7 @@ export class ClaudeAdapter implements ProviderAdapter {
           extractJsonObject(`${authResult.stdout}\n${authResult.stderr}`)
         );
         authenticated = authValue(auth);
+        detectedAuthMode = authMode(auth);
       } catch (error) {
         diagnostics.push({
           id: "claude.auth.parse",
@@ -114,6 +132,7 @@ export class ClaudeAdapter implements ProviderAdapter {
       state,
       installed: true,
       authenticated,
+      authMode: detectedAuthMode,
       reachable: null,
       canRun: authenticated === true,
       ...(version ? { version } : {}),

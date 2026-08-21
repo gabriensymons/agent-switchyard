@@ -39,6 +39,7 @@ describe("ClaudeAdapter", () => {
       state: "ready",
       installed: true,
       authenticated: true,
+      authMode: "subscription",
       canRun: true,
       version: "2.1.0 (Claude Code)",
       usage: { state: "unknown" }
@@ -65,6 +66,7 @@ describe("ClaudeAdapter", () => {
     expect(probe).toMatchObject({
       state: "not_installed",
       installed: false,
+      authMode: "unknown",
       canRun: false
     });
   });
