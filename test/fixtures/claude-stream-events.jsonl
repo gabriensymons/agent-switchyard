@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"<redacted>"}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"five_hour","resetsAt":1787331600,"utilization":0.86,"overageStatus":"rejected","isUsingOverage":false},"session_id":"<redacted>"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"SWITCHYARD_READ_ONLY_PROBE_V1"}],"usage":{"input_tokens":2,"output_tokens":8,"cache_creation_input_tokens":100,"cache_read_input_tokens":50}}}
+{"type":"result","subtype":"success","is_error":false,"result":"SWITCHYARD_READ_ONLY_PROBE_V1","usage":{"input_tokens":2,"output_tokens":8,"cache_creation_input_tokens":100,"cache_read_input_tokens":50}}

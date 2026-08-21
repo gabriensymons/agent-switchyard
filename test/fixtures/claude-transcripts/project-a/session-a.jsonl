@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2026-08-21T00:45:00.000Z","message":{"content":"content is ignored"}}
+{"type":"assistant","timestamp":"2026-08-21T01:00:00.000Z","sessionId":"session-secret","message":{"content":"content is ignored","usage":{"output_tokens":10,"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+not-json
+{"type":"assistant","timestamp":"2026-08-21T04:50:00.000Z","sessionId":"session-secret","message":{"content":"content is ignored","usage":{"output_tokens":4,"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "overallStatus": "warning",
+  "codexVersion": "0.148.0-alpha.15",
+  "checks": {
+    "auth.credentials": {
+      "status": "ok",
+      "summary": "auth is configured",
+      "details": {
+        "stored auth mode": "chatgpt"
+      },
+      "remediation": null
+    },
+    "network.provider_reachability": {
+      "status": "ok",
+      "summary": "provider endpoint is reachable",
+      "remediation": null
+    },
+    "mcp.config": {
+      "status": "warning",
+      "summary": "optional MCP server is unavailable",
+      "remediation": "Disable the optional server if it is not needed."
+    }
+  }
+}
