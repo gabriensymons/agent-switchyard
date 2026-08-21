@@ -1,5 +1,5 @@
 {
   "authenticated": true,
-  "authMethod": "subscription",
+  "authMethod": "claude.ai",
   "organization": "redacted"
 }

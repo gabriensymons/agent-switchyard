@@ -44,7 +44,18 @@ An explicit live protocol experiment is also available. It sends one fixed promp
 ```sh
 npm run build
 node dist/cli.js probe codex --live --cwd test/fixtures/live-repo
+node dist/cli.js probe claude --live --cwd test/fixtures/live-repo
 ```
+
+Claude Code does not expose the client `/usage` percentage as a stable CLI command. Switchyard can instead compute an optional rolling token proxy from local Claude Code transcripts. It reads only timestamps and token-usage fields and emits no transcript text, project names, paths, or session identifiers:
+
+```sh
+npm run build
+node dist/cli.js usage claude
+node dist/cli.js usage claude --calibration '2026-08-20T00:09:00-07:00=43'
+```
+
+Without calibration, the report contains weighted activity only. With an operator-supplied client observation, the percentage is labeled `estimated`; it must never be represented as Anthropic's authoritative plan usage.
 
 ## Safety boundary
 

@@ -19,6 +19,7 @@ export type ProviderAuthMode =
   | "subscription"
   | "api_key"
   | "access_token"
+  | "none"
   | "unknown";
 
 export interface UsageWindow {

@@ -3,12 +3,14 @@ import type { Diagnostic } from "../core/types.js";
 export interface TokenUsage {
   inputTokens?: number;
   cachedInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
   outputTokens?: number;
 }
 
 export interface LiveProbeReport {
   schemaVersion: 1;
-  provider: "codex";
+  provider: "codex" | "claude";
   state: "completed" | "failed" | "timed_out";
   generatedAt: string;
   durationMs: number;

@@ -10,6 +10,7 @@ Agent Switchyard is experimental software that may eventually launch coding agen
 - Never submit credentials to Switchyard or commit them to this repository.
 - Switchyard must not read provider credential stores, browser cookies, or raw tokens.
 - Fixtures and logs must contain no tokens, private source, full transcripts, or identifying local paths.
+- The optional Claude usage proxy may read local transcript files only to extract timestamps and numeric token-usage fields. Reports must omit prompts, responses, project names, paths, and session identifiers.
 
 ## Reporting a vulnerability
 

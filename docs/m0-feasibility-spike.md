@@ -13,7 +13,7 @@ Observed on 2026-08-21:
 | Provider | Local result | Machine-readable health/auth | Machine-readable quota |
 | --- | --- | --- | --- |
 | Codex | Installed (`0.148.0-alpha.15`), API-key auth | `codex doctor --json` | Not observed |
-| Claude Code | Not installed | To verify after installation | Not observed |
+| Claude Code | Installed (`2.1.238`), logged out | `claude auth status` schema verified | Transcript root not created yet |
 
 Codex's doctor command can exit nonzero while still returning valid redacted JSON because unrelated checks may fail. The adapter therefore parses the report first and evaluates the authentication and provider-reachability checks explicitly.
 
@@ -43,12 +43,22 @@ Provider states are `ready`, `degraded`, `not_installed`, `unauthenticated`, `un
 - [x] Commands have bounded output and deadlines.
 - [x] Fixture tests cover successful and missing-provider paths.
 - [x] A transcript-free Codex JSONL envelope and token-usage parser is fixture-tested.
-- [ ] Claude Code is installed and its real auth/event output is captured in a sanitized fixture.
+- [x] A streaming Claude transcript usage proxy is fixture-tested and cannot emit transcript content or session identifiers.
+- [x] Claude Code is installed and its real logged-out auth output is normalized.
+- [ ] Claude Code is authenticated and its live event output is captured in a sanitized fixture.
 - [x] Codex completes a read-only no-op prompt with JSONL events recorded and sanitized.
 - [ ] Claude completes the same read-only no-op prompt.
 - [ ] Cancellation and restart behavior are verified against both live CLIs.
 
 The unchecked items intentionally require provider installation and explicit model invocations. They are the second half of M0, not assumptions hidden in the adapter.
+
+## Claude usage proxy
+
+Claude Code's local JSONL transcripts contain per-request token fields but not the client `/usage` percentage. The optional proxy streams those files and retains only timestamps and input, output, cache-creation, and cache-read token counts. It intentionally omits transcript content, file paths, project names, and session identifiers from its report.
+
+The proxy uses the operator-provided weighting formula: output × 10, cache creation × 1.25, input × 1, and cache read × 0.1. Without a calibration observation it reports weighted units with `unknown` confidence. With one or more `ISO=pct` observations, the newest point sets the scale and the result is marked `estimated`. The scheduler must treat this differently from an exact provider signal and expose calibration residuals when multiple observations are available.
+
+The proxy does not infer a provider reset timestamp. A rolling transcript window has many token-expiry times, and those expirations are not proof of Anthropic's account-level reset behavior.
 
 ## Next experiment
 

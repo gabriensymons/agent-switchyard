@@ -30,11 +30,16 @@ function authValue(value: z.infer<typeof claudeAuthSchema>): boolean | null {
 
 function authMode(value: z.infer<typeof claudeAuthSchema>): ProviderAuthMode {
   const method = value.authMethod?.toLowerCase();
-  if (method?.includes("api")) return "api_key";
-  if (method?.includes("token")) return "access_token";
-  if (method?.includes("subscription") || method?.includes("oauth")) {
+  if (method === "none") return "none";
+  if (
+    method?.includes("subscription") ||
+    method?.includes("oauth") ||
+    method?.includes("claude.ai")
+  ) {
     return "subscription";
   }
+  if (method?.includes("api") || method?.includes("console")) return "api_key";
+  if (method?.includes("token")) return "access_token";
   return "unknown";
 }
 
@@ -121,6 +126,15 @@ export class ClaudeAdapter implements ProviderAdapter {
           remediation: "Check adapter compatibility with the installed Claude Code version."
         });
       }
+    }
+
+    if (authenticated === false) {
+      diagnostics.push({
+        id: "claude.auth",
+        status: "fail",
+        summary: "Claude Code is installed but not authenticated",
+        remediation: "Run `claude auth login` and sign in with the subscription intended for Switchyard."
+      });
     }
 
     let state: ProviderProbe["state"] = "degraded";
