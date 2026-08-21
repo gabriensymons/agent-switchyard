@@ -39,10 +39,9 @@ async function observeProcess(pid: number): Promise<ProcessObservation> {
 async function waitForNoRunnableProcess(
   pid: number,
   timeoutMs = 1_000
-): Promise<{ initial: ProcessObservation; final: ProcessObservation }> {
+): Promise<ProcessObservation> {
   const deadline = Date.now() + timeoutMs;
-  const initial = await observeProcess(pid);
-  let current = initial;
+  let current = await observeProcess(pid);
 
   while (current.runnable && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -55,7 +54,7 @@ async function waitForNoRunnableProcess(
     );
   }
 
-  return { initial, final: current };
+  return current;
 }
 
 describe("SpawnCommandRunner", () => {
@@ -200,18 +199,12 @@ describe("SpawnCommandRunner", () => {
       const descendantPid = Number.parseInt(result.stdout, 10);
       const descendant = await waitForNoRunnableProcess(descendantPid);
 
-      if (process.platform === "linux") {
-        console.info(
-          `descendant after process-group termination: initial=${descendant.initial.state}, final=${descendant.final.state}`
-        );
-      }
-
       expect(result.termination).toMatchObject({
         cause: "cancelled",
         forced: true,
         processGroup: true
       });
-      expect(descendant.final.runnable).toBe(false);
+      expect(descendant.runnable).toBe(false);
     }
   );
 
