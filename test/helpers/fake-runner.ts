@@ -11,13 +11,24 @@ export function commandKey(command: string, args: string[]): string {
 export function commandResult(
   overrides: Partial<CommandResult> = {}
 ): CommandResult {
+  const termination = overrides.termination ?? {
+    cause: overrides.timedOut
+      ? ("timed_out" as const)
+      : overrides.signal
+        ? ("interrupted" as const)
+        : ("exited" as const),
+    requestedSignal: overrides.timedOut ? ("SIGTERM" as const) : null,
+    forced: false,
+    processGroup: false
+  };
   return {
     exitCode: 0,
     stdout: "",
     stderr: "",
     timedOut: false,
     signal: null,
-    ...overrides
+    ...overrides,
+    termination
   };
 }
 

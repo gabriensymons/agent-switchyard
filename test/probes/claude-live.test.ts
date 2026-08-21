@@ -50,10 +50,18 @@ describe("runClaudeLiveProbe", () => {
     expect(report).toEqual({
       schemaVersion: 1,
       provider: "claude",
+      identityId: "claude-subscription",
       state: "completed",
       generatedAt: "2026-08-21T00:00:03.000Z",
       durationMs: 3_000,
       exitCode: 0,
+      signal: null,
+      termination: {
+        cause: "exited",
+        requestedSignal: null,
+        forced: false,
+        processGroup: false
+      },
       eventCount: 4,
       eventTypes: {
         system: 1,
@@ -106,6 +114,47 @@ describe("runClaudeLiveProbe", () => {
     expect(report.state).toBe("timed_out");
     expect(report.diagnostics).toEqual([
       expect.objectContaining({ id: "claude.probe.timeout", status: "fail" })
+    ]);
+  });
+
+  it("classifies intentional cancellation without a marker failure", async () => {
+    const runner = new FakeCommandRunner(
+      new Map([
+        [
+          commandKey("claude", args),
+          commandResult({
+            exitCode: null,
+            signal: "SIGKILL",
+            termination: {
+              cause: "cancelled",
+              requestedSignal: "SIGKILL",
+              forced: true,
+              processGroup: true
+            }
+          })
+        ]
+      ])
+    );
+
+    const report = await runClaudeLiveProbe({
+      identityId: "claude-subscription",
+      cwd: "/fixture",
+      timeoutMs: 10_000,
+      runner,
+      now: () => new Date("2026-08-21T00:00:00.000Z")
+    });
+
+    expect(report).toMatchObject({
+      identityId: "claude-subscription",
+      state: "cancelled",
+      expectedMarkerObserved: false,
+      termination: { cause: "cancelled", forced: true }
+    });
+    expect(report.diagnostics).toEqual([
+      expect.objectContaining({
+        id: "claude.probe.cancelled",
+        status: "warning"
+      })
     ]);
   });
 });

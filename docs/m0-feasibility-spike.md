@@ -21,6 +21,12 @@ The live Codex experiment completed successfully against the disposable fixture 
 
 The local Codex installation used API-key authentication for this experiment. That validates the process and event protocol, but not ChatGPT Business subscription quota behavior. Authentication mode is therefore part of the normalized provider report and must gate any subscription-specific quota policy.
 
+## Codex identity isolation
+
+The `codex-default` identity deliberately leaves the current Codex home unchanged, preserving whichever operator-selected authentication is active there. Its stable name is a routing identifier, not a guarantee of any authentication mode. The `codex-isolated` identity has a separate `CODEX_HOME` under Switchyard's local state directory and forces file-backed credential storage there. Its process environment removes inherited OpenAI API keys and Codex access tokens so they cannot silently take precedence over the independent ChatGPT login.
+
+Provider identity is now explicit in doctor reports and live Codex probes. This is the first routing boundary the scheduler will use: tasks must select a provider identity, not merely a vendor. Credential files remain opaque to Switchyard.
+
 ## Normalized probe contract
 
 Every provider probe reports:
@@ -49,9 +55,9 @@ Provider states are `ready`, `degraded`, `not_installed`, `unauthenticated`, `un
 - [x] Codex completes a read-only no-op prompt with JSONL events recorded and sanitized.
 - [x] Claude completes the same read-only no-op prompt.
 - [x] Claude live timeout terminates the process and reports `timed_out`.
-- [ ] Explicit cancellation and restart behavior are verified against both live CLIs.
+- [x] Explicit cancellation and restart behavior are verified against both live CLIs.
 
-The unchecked items intentionally require provider installation and explicit model invocations. They are the second half of M0, not assumptions hidden in the adapter.
+All M0 exit criteria are satisfied with fixture, integration, and bounded live evidence.
 
 ## Claude usage proxy
 
@@ -67,12 +73,16 @@ The authenticated live probe emitted a documented `rate_limit_event`. Switchyard
 
 The live Pro probe on 2026-08-21 returned `allowed` for the `five_hour` limit, an exact reset timestamp, `overageStatus: allowed`, and `isUsingOverage: false`. It did not include utilization. The probe completed in ephemeral mode and did not create a local transcript.
 
-## Next experiment
+## Cancellation and restart
 
-After reviewing the doctor output:
+Switchyard now persists schema-versioned run records and sanitized handoffs under its private local state root. Attempts distinguish `completed`, `failed`, `cancelled`, `interrupted`, and `timed_out`; restart creates a new linked attempt. The command runner uses a dedicated POSIX process group, sends `SIGTERM`, escalates to `SIGKILL` after a bounded grace period, and records one termination outcome.
 
-1. Install and authenticate Claude Code independently.
-2. Add an explicit `switchyard probe codex` command that runs a fixed read-only prompt under a temporary fixture repository and records only the event envelope.
-3. Repeat for Claude.
-4. Add timeout and cancellation experiments using those live probes.
-5. Do not begin unattended dispatch until both providers produce deterministic completion and failure signals.
+On 2026-08-21, the isolated Codex identity's cancellation experiment stopped in 506 ms through process-group `SIGTERM`. A process-list check found no fixture-associated process. The disposable Git worktree remained clean, so restart created a second attempt linked to the cancelled attempt and its handoff. The fresh attempt completed in 6.4 seconds with the expected marker and `turn.completed` event.
+
+Claude cancellation also completed in 506 ms through process-group `SIGTERM`, with no fixture-associated process afterward. Its clean-worktree restart created a linked second attempt and completed in 9.65 seconds with the expected marker and deterministic result evidence. The live report retained only event types, token counts, and normalized rate-limit fields.
+
+An earlier doctor run inside the restricted app sandbox reported Claude unauthenticated because that context could not see the keychain-backed CLI login. Repeating the normalized doctor check with scoped host access returned `overall: ready` and confirmed the Claude subscription identity was authenticated and runnable. No credential files or account identifiers were read.
+
+## Milestone closeout
+
+M0 is complete. The next milestone should be planned separately. Unattended dispatch remains disabled until the remaining safety gates, including scheduling policy for exact, estimated, and unknown usage plus queued operator questions, are implemented and verified.

@@ -1,14 +1,19 @@
 import type { CommandRunner } from "../core/command-runner.js";
 import type { Diagnostic } from "../core/types.js";
 import type { LiveProbeReport, TokenUsage } from "./types.js";
+import { sanitizedStderrDiagnostic } from "./diagnostics.js";
 
 export const CODEX_PROBE_MARKER = "SWITCHYARD_READ_ONLY_PROBE_V1";
 
 export interface CodexLiveProbeOptions {
+  identityId: string;
   cwd: string;
   timeoutMs: number;
   runner: CommandRunner;
   now?: () => Date;
+  environment?: Record<string, string | undefined>;
+  signal?: AbortSignal;
+  terminationGraceMs?: number;
 }
 
 interface JsonRecord {
@@ -80,7 +85,12 @@ export async function runCodexLiveProbe(
       `Read README.md only. Reply with exactly ${CODEX_PROBE_MARKER} and do not run commands or modify files.`
     ],
     cwd: options.cwd,
-    timeoutMs: options.timeoutMs
+    timeoutMs: options.timeoutMs,
+    ...(options.environment ? { environment: options.environment } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.terminationGraceMs === undefined
+      ? {}
+      : { terminationGraceMs: options.terminationGraceMs })
   });
   const finishedAt = now();
   const eventTypes: Record<string, number> = {};
@@ -114,11 +124,23 @@ export async function runCodexLiveProbe(
       summary: `${malformedLines} output line(s) were not JSON events`
     });
   }
-  if (result.timedOut) {
+  if (result.termination.cause === "timed_out") {
     diagnostics.push({
       id: "codex.probe.timeout",
       status: "fail",
       summary: "Codex probe exceeded its deadline and was terminated"
+    });
+  } else if (result.termination.cause === "cancelled") {
+    diagnostics.push({
+      id: "codex.probe.cancelled",
+      status: "warning",
+      summary: "Codex probe was intentionally cancelled by Switchyard"
+    });
+  } else if (result.termination.cause === "interrupted") {
+    diagnostics.push({
+      id: "codex.probe.interrupted",
+      status: "fail",
+      summary: "Codex stopped without a confirmed terminal outcome"
     });
   } else if (!expectedMarkerObserved) {
     diagnostics.push({
@@ -128,26 +150,41 @@ export async function runCodexLiveProbe(
     });
   }
   if (result.stderr.trim()) {
-    diagnostics.push({
-      id: "codex.probe.stderr",
-      status: result.exitCode === 0 ? "warning" : "fail",
-      summary: "Codex emitted diagnostic output on stderr"
-    });
+    diagnostics.push(
+      sanitizedStderrDiagnostic({
+        provider: "codex",
+        stderr: result.stderr,
+        status:
+        result.exitCode === 0 ||
+        result.termination.cause === "cancelled" ||
+        result.termination.cause === "timed_out"
+          ? "warning"
+          : "fail"
+      })
+    );
   }
 
-  const state: LiveProbeReport["state"] = result.timedOut
-    ? "timed_out"
-    : result.exitCode === 0 && expectedMarkerObserved
-      ? "completed"
-      : "failed";
+  const state: LiveProbeReport["state"] =
+    result.termination.cause === "timed_out"
+      ? "timed_out"
+      : result.termination.cause === "cancelled"
+        ? "cancelled"
+        : result.termination.cause === "interrupted"
+          ? "interrupted"
+          : result.exitCode === 0 && expectedMarkerObserved
+            ? "completed"
+            : "failed";
 
   return {
     schemaVersion: 1,
     provider: "codex",
+    identityId: options.identityId,
     state,
     generatedAt: finishedAt.toISOString(),
     durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     exitCode: result.exitCode,
+    signal: result.signal,
+    termination: result.termination,
     eventCount,
     eventTypes,
     expectedMarkerObserved,

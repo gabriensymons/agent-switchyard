@@ -22,6 +22,7 @@ describe("renderDoctor", () => {
       providers: [
         {
           id: "codex",
+          provider: "codex",
           displayName: "Codex",
           command: "codex",
           state: "ready",

@@ -46,7 +46,8 @@ export interface ProviderCapabilities {
 }
 
 export interface ProviderProbe {
-  id: "codex" | "claude";
+  id: string;
+  provider: "codex" | "claude";
   displayName: string;
   command: string;
   state: ProviderState;

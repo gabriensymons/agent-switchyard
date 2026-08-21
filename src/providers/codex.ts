@@ -7,11 +7,12 @@ import type {
 } from "../core/types.js";
 import type { ProbeContext, ProviderAdapter } from "./provider.js";
 import { cleanVersion, unknownUsage } from "./shared.js";
+import type { CodexIdentity } from "../config/codex-identities.js";
 
 const codexCheckSchema = z.object({
   status: z.enum(["ok", "warning", "fail"]),
   summary: z.string(),
-  details: z.record(z.string(), z.string()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
   remediation: z.string().nullable().optional()
 });
 
@@ -35,7 +36,8 @@ function diagnosticsFromDoctor(
 function codexAuthMode(
   auth: z.infer<typeof codexCheckSchema> | undefined
 ): ProviderAuthMode {
-  const value = auth?.details?.["stored auth mode"]?.toLowerCase();
+  const storedMode = auth?.details?.["stored auth mode"];
+  const value = typeof storedMode === "string" ? storedMode.toLowerCase() : undefined;
   if (value === "api_key") return "api_key";
   if (value === "access_token") return "access_token";
   if (value?.includes("chatgpt") || value?.includes("subscription")) {
@@ -45,13 +47,18 @@ function codexAuthMode(
 }
 
 export class CodexAdapter implements ProviderAdapter {
-  readonly id = "codex" as const;
+  readonly id: string;
+
+  constructor(private readonly identity: CodexIdentity) {
+    this.id = identity.id;
+  }
 
   async probe(context: ProbeContext): Promise<ProviderProbe> {
     const observedAt = context.now().toISOString();
     const base = {
       id: this.id,
-      displayName: "Codex",
+      provider: "codex" as const,
+      displayName: this.identity.displayName,
       command: "codex",
       observedAt,
       capabilities: {
@@ -72,7 +79,8 @@ export class CodexAdapter implements ProviderAdapter {
       command: "codex",
       args: ["--version"],
       cwd: context.cwd,
-      timeoutMs: context.timeoutMs
+      timeoutMs: context.timeoutMs,
+      environment: this.identity.environment
     });
 
     if (versionResult.errorCode === "ENOENT") {
@@ -100,7 +108,8 @@ export class CodexAdapter implements ProviderAdapter {
       command: "codex",
       args: ["doctor", "--json"],
       cwd: context.cwd,
-      timeoutMs: context.timeoutMs
+      timeoutMs: context.timeoutMs,
+      environment: this.identity.environment
     });
 
     if (doctorResult.timedOut) {

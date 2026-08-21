@@ -51,9 +51,14 @@ describe("runDoctor", () => {
     expect(report.overall).toBe("degraded");
     expect(report.git).toMatchObject({ state: "ready", clean: true });
     expect(report.providers).toEqual([
-      expect.objectContaining({ id: "codex", state: "ready", canRun: true }),
+      expect.objectContaining({ id: "codex-default", state: "ready", canRun: true }),
       expect.objectContaining({
-        id: "claude",
+        id: "codex-isolated",
+        state: "ready",
+        canRun: true
+      }),
+      expect.objectContaining({
+        id: "claude-subscription",
         state: "not_installed",
         canRun: false
       })

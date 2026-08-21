@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "auth.credentials": {
+      "status": "fail",
+      "summary": "auth is not configured",
+      "details": {
+        "stored auth mode": null
+      },
+      "remediation": "Run codex login"
+    },
+    "network.provider_reachability": {
+      "status": "warning",
+      "summary": "reachability skipped",
+      "details": {
+        "attempted endpoints": []
+      },
+      "remediation": null
+    },
+    "updates.status": {
+      "status": "warning",
+      "summary": "version cache is missing",
+      "details": {
+        "version cache": ["missing", "will be created later"]
+      },
+      "remediation": null
+    }
+  }
+}

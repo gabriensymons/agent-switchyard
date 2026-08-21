@@ -9,6 +9,6 @@ export interface ProbeContext {
 }
 
 export interface ProviderAdapter {
-  readonly id: ProviderProbe["id"];
+  readonly id: string;
   probe(context: ProbeContext): Promise<ProviderProbe>;
 }

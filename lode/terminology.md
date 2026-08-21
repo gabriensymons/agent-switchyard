@@ -1,0 +1,16 @@
+# Terminology
+
+- **Adapter** — Provider-specific code that translates an official CLI's behavior into Switchyard's normalized contracts.
+- **Attempt** — One immutable execution history within a run. Restart creates a new linked attempt rather than rewriting a terminal attempt.
+- **Claude subscription identity (`claude-subscription`)** — The operator-managed Claude Code authentication context.
+- **Codex default identity (`codex-default`)** — The Codex provider identity pinned to the existing default `~/.codex` home. Its observed authentication mode can change independently of its stable routing name.
+- **Codex isolated identity (`codex-isolated`)** — A separately authenticated, Switchyard-managed Codex home. It can use any eligible ChatGPT plan selected by the operator.
+- **Doctor probe** — A non-prompting readiness check for Git and configured provider identities.
+- **Handoff** — A sanitized continuation document describing task state, decisions, blockers, and the next safe action without including credentials or transcript content.
+- **Identity** — A uniquely addressable provider authentication and policy context. Dispatch selects an identity, not merely a provider vendor.
+- **Live probe** — An explicit, bounded model invocation using a fixed read-only prompt and a disposable fixture.
+- **Lode** — Repository-owned, vendor-neutral project memory describing the system's current state and active durable plans.
+- **Provider** — An official coding-agent CLI family, currently Codex or Claude Code.
+- **Run** — A durable lifecycle record for one provider identity and worktree; it contains one or more linked attempts.
+- **Usage confidence** — Whether a usage signal is exact, estimated, or unknown.
+- **Usage window** — A provider limit period with any trustworthy utilization and reset information available for that period.

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLAUDE_SUBSCRIPTION_IDENTITY } from "../config/claude-identities.js";
 import { extractJsonObject } from "../core/json.js";
 import type {
   Diagnostic,
@@ -44,12 +45,13 @@ function authMode(value: z.infer<typeof claudeAuthSchema>): ProviderAuthMode {
 }
 
 export class ClaudeAdapter implements ProviderAdapter {
-  readonly id = "claude" as const;
+  readonly id = CLAUDE_SUBSCRIPTION_IDENTITY;
 
   async probe(context: ProbeContext): Promise<ProviderProbe> {
     const observedAt = context.now().toISOString();
     const base = {
       id: this.id,
+      provider: "claude" as const,
       displayName: "Claude Code",
       command: "claude",
       observedAt,

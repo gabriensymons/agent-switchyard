@@ -4,12 +4,17 @@ import type { DoctorReport } from "./core/types.js";
 import { probeGit } from "./git/probe.js";
 import { ClaudeAdapter } from "./providers/claude.js";
 import { CodexAdapter } from "./providers/codex.js";
+import {
+  codexIdentities,
+  type CodexIdentity
+} from "./config/codex-identities.js";
 
 export interface DoctorOptions {
   cwd?: string;
   timeoutMs?: number;
   now?: () => Date;
   runner?: CommandRunner;
+  codexIdentityConfigs?: CodexIdentity[];
 }
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorReport> {
@@ -18,13 +23,16 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   const now = options.now ?? (() => new Date());
   const runner = options.runner ?? new SpawnCommandRunner();
   const context = { cwd, timeoutMs, now, runner };
+  const codexAdapters = (options.codexIdentityConfigs ?? codexIdentities()).map(
+    (identity) => new CodexAdapter(identity)
+  );
 
-  const [git, codex, claude] = await Promise.all([
+  const [git, codexProviders, claude] = await Promise.all([
     probeGit(context),
-    new CodexAdapter().probe(context),
+    Promise.all(codexAdapters.map(async (adapter) => await adapter.probe(context))),
     new ClaudeAdapter().probe(context)
   ]);
-  const providers = [codex, claude];
+  const providers = [...codexProviders, claude];
   const installedProviders = providers.filter((provider) => provider.installed);
 
   let overall: DoctorReport["overall"] = "ready";

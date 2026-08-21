@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../core/types.js";
+import type { CommandTermination } from "../core/command-runner.js";
 
 export interface TokenUsage {
   inputTokens?: number;
@@ -20,10 +21,18 @@ export interface ProviderRateLimitInfo {
 export interface LiveProbeReport {
   schemaVersion: 1;
   provider: "codex" | "claude";
-  state: "completed" | "failed" | "timed_out";
+  identityId: string;
+  state:
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "interrupted"
+    | "timed_out";
   generatedAt: string;
   durationMs: number;
   exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  termination: CommandTermination;
   eventCount: number;
   eventTypes: Record<string, number>;
   expectedMarkerObserved: boolean;

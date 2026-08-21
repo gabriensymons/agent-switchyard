@@ -5,14 +5,19 @@ import type {
   ProviderRateLimitInfo,
   TokenUsage
 } from "./types.js";
+import { CLAUDE_SUBSCRIPTION_IDENTITY } from "../config/claude-identities.js";
+import { sanitizedStderrDiagnostic } from "./diagnostics.js";
 
 export const CLAUDE_PROBE_MARKER = "SWITCHYARD_READ_ONLY_PROBE_V1";
 
 export interface ClaudeLiveProbeOptions {
+  identityId?: string;
   cwd: string;
   timeoutMs: number;
   runner: CommandRunner;
   now?: () => Date;
+  signal?: AbortSignal;
+  terminationGraceMs?: number;
 }
 
 interface JsonRecord {
@@ -120,7 +125,11 @@ export async function runClaudeLiveProbe(
       `Read README.md only. Reply with exactly ${CLAUDE_PROBE_MARKER} and do not run commands or modify files.`
     ],
     cwd: options.cwd,
-    timeoutMs: options.timeoutMs
+    timeoutMs: options.timeoutMs,
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.terminationGraceMs === undefined
+      ? {}
+      : { terminationGraceMs: options.terminationGraceMs })
   });
   const finishedAt = now();
   const eventTypes: Record<string, number> = {};
@@ -156,11 +165,23 @@ export async function runClaudeLiveProbe(
       summary: `${malformedLines} output line(s) were not JSON events`
     });
   }
-  if (result.timedOut) {
+  if (result.termination.cause === "timed_out") {
     diagnostics.push({
       id: "claude.probe.timeout",
       status: "fail",
       summary: "Claude probe exceeded its deadline and was terminated"
+    });
+  } else if (result.termination.cause === "cancelled") {
+    diagnostics.push({
+      id: "claude.probe.cancelled",
+      status: "warning",
+      summary: "Claude probe was intentionally cancelled by Switchyard"
+    });
+  } else if (result.termination.cause === "interrupted") {
+    diagnostics.push({
+      id: "claude.probe.interrupted",
+      status: "fail",
+      summary: "Claude stopped without a confirmed terminal outcome"
     });
   } else if (!expectedMarkerObserved) {
     diagnostics.push({
@@ -170,26 +191,41 @@ export async function runClaudeLiveProbe(
     });
   }
   if (result.stderr.trim()) {
-    diagnostics.push({
-      id: "claude.probe.stderr",
-      status: result.exitCode === 0 ? "warning" : "fail",
-      summary: "Claude emitted diagnostic output on stderr"
-    });
+    diagnostics.push(
+      sanitizedStderrDiagnostic({
+        provider: "claude",
+        stderr: result.stderr,
+        status:
+        result.exitCode === 0 ||
+        result.termination.cause === "cancelled" ||
+        result.termination.cause === "timed_out"
+          ? "warning"
+          : "fail"
+      })
+    );
   }
 
-  const state: LiveProbeReport["state"] = result.timedOut
-    ? "timed_out"
-    : result.exitCode === 0 && expectedMarkerObserved
-      ? "completed"
-      : "failed";
+  const state: LiveProbeReport["state"] =
+    result.termination.cause === "timed_out"
+      ? "timed_out"
+      : result.termination.cause === "cancelled"
+        ? "cancelled"
+        : result.termination.cause === "interrupted"
+          ? "interrupted"
+          : result.exitCode === 0 && expectedMarkerObserved
+            ? "completed"
+            : "failed";
 
   return {
     schemaVersion: 1,
     provider: "claude",
+    identityId: options.identityId ?? CLAUDE_SUBSCRIPTION_IDENTITY,
     state,
     generatedAt: finishedAt.toISOString(),
     durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     exitCode: result.exitCode,
+    signal: result.signal,
+    termination: result.termination,
     eventCount,
     eventTypes,
     expectedMarkerObserved,
