@@ -1,5 +1,61 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { SpawnCommandRunner } from "../../src/core/command-runner.js";
+
+interface ProcessObservation {
+  runnable: boolean;
+  state: string;
+}
+
+async function observeProcess(pid: number): Promise<ProcessObservation> {
+  if (process.platform === "linux") {
+    try {
+      const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+      const commandEnd = stat.lastIndexOf(")");
+      const state = stat.slice(commandEnd + 2).split(" ", 1)[0];
+      return {
+        runnable: state !== "Z" && state !== "X" && state !== "x",
+        state: state === "Z" ? "zombie" : `linux:${state}`
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return { runnable: false, state: "absent" };
+      }
+      throw error;
+    }
+  }
+
+  try {
+    process.kill(pid, 0);
+    return { runnable: true, state: "present" };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") {
+      return { runnable: false, state: "absent" };
+    }
+    throw error;
+  }
+}
+
+async function waitForNoRunnableProcess(
+  pid: number,
+  timeoutMs = 1_000
+): Promise<ProcessObservation> {
+  const deadline = Date.now() + timeoutMs;
+  let current = await observeProcess(pid);
+
+  while (current.runnable && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    current = await observeProcess(pid);
+  }
+
+  if (current.runnable) {
+    throw new Error(
+      `descendant process ${pid} remained runnable (${current.state}) after ${timeoutMs} ms`
+    );
+  }
+
+  return current;
+}
 
 describe("SpawnCommandRunner", () => {
   const runner = new SpawnCommandRunner();
@@ -141,19 +197,14 @@ describe("SpawnCommandRunner", () => {
 
       const result = await pending;
       const descendantPid = Number.parseInt(result.stdout, 10);
-      let descendantExists = true;
-      try {
-        process.kill(descendantPid, 0);
-      } catch {
-        descendantExists = false;
-      }
+      const descendant = await waitForNoRunnableProcess(descendantPid);
 
       expect(result.termination).toMatchObject({
         cause: "cancelled",
         forced: true,
         processGroup: true
       });
-      expect(descendantExists).toBe(false);
+      expect(descendant.runnable).toBe(false);
     }
   );
 
