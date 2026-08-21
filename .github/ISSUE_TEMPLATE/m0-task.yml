@@ -1,0 +1,26 @@
+name: M0 feasibility task
+description: Track a bounded provider-protocol experiment.
+title: "[M0] "
+labels: [m0, spike]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Feasibility question
+      description: State the single provider behavior this experiment must answer.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required evidence
+      description: List fixtures, commands, and tests that establish the answer without secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety boundary
+      description: Identify allowed filesystem, network, and repository effects.
+    validations:
+      required: true
