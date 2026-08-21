@@ -114,7 +114,13 @@ export async function runCodexLiveProbe(
       summary: `${malformedLines} output line(s) were not JSON events`
     });
   }
-  if (!expectedMarkerObserved) {
+  if (result.timedOut) {
+    diagnostics.push({
+      id: "codex.probe.timeout",
+      status: "fail",
+      summary: "Codex probe exceeded its deadline and was terminated"
+    });
+  } else if (!expectedMarkerObserved) {
     diagnostics.push({
       id: "codex.probe.marker",
       status: "fail",

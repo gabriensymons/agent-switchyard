@@ -58,12 +58,12 @@ export class ClaudeAdapter implements ProviderAdapter {
         structuredEvents: true,
         machineReadableAuth: true,
         machineReadableHealth: false,
-        machineReadableUsage: false
+        machineReadableUsage: true
       },
       usage: unknownUsage(
         observedAt,
         "claude auth status --json",
-        "No stable machine-readable subscription quota was observed during M0; usage must remain unknown until a supported signal is verified."
+        "Claude stream-json emits machine-readable rate-limit status and reset events; utilization may be absent while status is allowed, so percentage can remain unknown."
       )
     } satisfies Partial<ProviderProbe>;
 

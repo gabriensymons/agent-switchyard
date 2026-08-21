@@ -42,7 +42,8 @@ describe("ClaudeAdapter", () => {
       authMode: "subscription",
       canRun: true,
       version: "2.1.0 (Claude Code)",
-      usage: { state: "unknown" }
+      usage: { state: "unknown" },
+      capabilities: { machineReadableUsage: true }
     });
   });
 

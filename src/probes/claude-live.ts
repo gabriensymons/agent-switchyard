@@ -1,6 +1,10 @@
 import type { CommandRunner } from "../core/command-runner.js";
 import type { Diagnostic } from "../core/types.js";
-import type { LiveProbeReport, TokenUsage } from "./types.js";
+import type {
+  LiveProbeReport,
+  ProviderRateLimitInfo,
+  TokenUsage
+} from "./types.js";
 
 export const CLAUDE_PROBE_MARKER = "SWITCHYARD_READ_ONLY_PROBE_V1";
 
@@ -58,6 +62,40 @@ function findUsage(value: unknown): TokenUsage | null {
   return null;
 }
 
+function epochToIso(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const milliseconds = value > 10_000_000_000 ? value : value * 1_000;
+  return new Date(milliseconds).toISOString();
+}
+
+function rateLimitFromEvent(event: JsonRecord): ProviderRateLimitInfo | undefined {
+  if (event.type !== "rate_limit_event" || !isRecord(event.rate_limit_info)) {
+    return undefined;
+  }
+  const info = event.rate_limit_info;
+  const rawStatus = typeof info.status === "string" ? info.status : "unknown";
+  const status = ["allowed", "allowed_warning", "rejected"].includes(rawStatus)
+    ? (rawStatus as ProviderRateLimitInfo["status"])
+    : "unknown";
+  const resetsAt = epochToIso(info.resetsAt);
+  return {
+    status,
+    ...(typeof info.rateLimitType === "string"
+      ? { rateLimitType: info.rateLimitType }
+      : {}),
+    ...(resetsAt ? { resetsAt } : {}),
+    ...(typeof info.utilization === "number"
+      ? { utilization: info.utilization }
+      : {}),
+    ...(typeof info.overageStatus === "string"
+      ? { overageStatus: info.overageStatus }
+      : {}),
+    ...(typeof info.isUsingOverage === "boolean"
+      ? { isUsingOverage: info.isUsingOverage }
+      : {})
+  };
+}
+
 export async function runClaudeLiveProbe(
   options: ClaudeLiveProbeOptions
 ): Promise<LiveProbeReport> {
@@ -91,6 +129,7 @@ export async function runClaudeLiveProbe(
   let malformedLines = 0;
   let expectedMarkerObserved = false;
   let usage: TokenUsage | null = null;
+  let rateLimit: ProviderRateLimitInfo | undefined;
 
   for (const line of result.stdout.split(/\r?\n/u).filter(Boolean)) {
     try {
@@ -104,6 +143,7 @@ export async function runClaudeLiveProbe(
       eventTypes[type] = (eventTypes[type] ?? 0) + 1;
       if (line.includes(CLAUDE_PROBE_MARKER)) expectedMarkerObserved = true;
       usage = findUsage(event) ?? usage;
+      rateLimit = rateLimitFromEvent(event) ?? rateLimit;
     } catch {
       malformedLines += 1;
     }
@@ -116,7 +156,13 @@ export async function runClaudeLiveProbe(
       summary: `${malformedLines} output line(s) were not JSON events`
     });
   }
-  if (!expectedMarkerObserved) {
+  if (result.timedOut) {
+    diagnostics.push({
+      id: "claude.probe.timeout",
+      status: "fail",
+      summary: "Claude probe exceeded its deadline and was terminated"
+    });
+  } else if (!expectedMarkerObserved) {
     diagnostics.push({
       id: "claude.probe.marker",
       status: "fail",
@@ -148,6 +194,7 @@ export async function runClaudeLiveProbe(
     eventTypes,
     expectedMarkerObserved,
     usage,
+    ...(rateLimit ? { rateLimit } : {}),
     diagnostics
   };
 }
