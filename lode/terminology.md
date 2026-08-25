@@ -11,7 +11,9 @@
 - **Live probe** — An explicit, bounded model invocation using a fixed read-only prompt and a disposable fixture.
 - **Lode** — Repository-owned, vendor-neutral project memory describing the system's current state and active durable plans.
 - **Provider** — An official coding-agent CLI family, currently Codex or Claude Code.
+- **Registered verification command** — A repository-policy definition containing an executable, literal argv array, fixed relative working directory, and timeout; it contains no shell string, environment values, or runtime substitution.
 - **Repository record** — A registered repository identity plus its canonical roots, default branch, and versioned immutable policy snapshot.
+- **Repository policy** — The immutable local-only ceiling for allowed and forbidden paths, explicit provider identities, registered verification commands, and M1 limits.
 - **Run** — A durable lifecycle record for one provider identity and worktree; it contains one or more linked attempts.
 - **Task** — A durable M1 work item whose normalized state uses an optimistic revision and whose mutations are paired with append-only events.
 - **Task event** — An immutable audit record committed in the same SQLite transaction as the task state mutation it describes.

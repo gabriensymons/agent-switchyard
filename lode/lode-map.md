@@ -11,6 +11,7 @@ Use this index before searching the codebase. Read only the focused documents re
 ## Architecture and safety
 
 - [Provider identities](architecture/provider-identities.md): default, isolated, and subscription-backed credential routing.
+- [Repository registration](architecture/repository-registration.md): canonical roots, immutable policy ceilings, path syntax, and registered argv verification commands.
 - [Run lifecycle](architecture/run-lifecycle.md): durable attempts, process termination, sanitized handoffs, and restart gates.
 - [Storage foundation](architecture/storage-foundation.md): private SQLite state, forward-only migrations, optimistic task revisions, and atomic task events.
 - [Safety boundaries](architecture/safety-boundaries.md): current implemented permissions, credential rules, and gates for unattended work.

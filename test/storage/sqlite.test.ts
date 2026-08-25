@@ -46,8 +46,27 @@ function repository(
     defaultBranch: "main",
     policy: {
       schemaVersion: 1,
+      operatingMode: "local-only",
       allowedPaths: ["src/**"],
-      limits: { changedFiles: 10 }
+      forbiddenPaths: ["generated/**"],
+      providerIdentities: ["codex-isolated"],
+      verificationCommands: [
+        {
+          id: "test",
+          executable: "npm",
+          args: ["test"],
+          cwd: ".",
+          timeoutMs: 60_000
+        }
+      ],
+      limits: {
+        runtimeMinutes: 20,
+        attempts: 2,
+        changedFiles: 10,
+        diffLines: 1_000,
+        changedFileBytes: 256 * 1024,
+        commandOutputBytes: 1024 * 1024
+      }
     },
     createdAt: "2026-08-21T00:00:00.000Z",
     updatedAt: "2026-08-21T00:00:00.000Z",
@@ -163,6 +182,46 @@ describe("SqliteStorage", () => {
       ...repository(),
       policy: expectedPolicy
     });
+  });
+
+  it("resolves repositories by alias and lists them deterministically", async () => {
+    const { store } = await openStorage();
+    const second = repository({
+      id: "repo-2",
+      alias: "zeta",
+      canonicalRoot: "/repos/zeta",
+      worktreeRoot: "/worktrees/zeta"
+    });
+    const first = repository({ alias: "alpha" });
+    store.createRepository(second);
+    store.createRepository(first);
+
+    expect(store.getRepositoryByAlias("alpha")).toEqual(first);
+    expect(store.getRepositoryByAlias("missing")).toBeNull();
+    expect(store.listRepositories()).toEqual([first, second]);
+  });
+
+  it("rejects unsupported repository policy on write and read", async () => {
+    const { root, store } = await openStorage();
+    expect(() =>
+      store.createRepository(
+        repository({ policy: { schemaVersion: 1 } as never })
+      )
+    ).toThrowError(expect.objectContaining({ code: "write_failed" }));
+
+    store.createRepository(repository());
+    const databasePath = store.databasePath;
+    store.close();
+    const database = new Database(databasePath);
+    database.prepare(`
+      UPDATE repositories SET policy_json = ? WHERE id = ?
+    `).run('{"schemaVersion":99}', "repo-1");
+    database.close();
+    const reopened = SqliteStorage.open({ stateRoot: root });
+    openStores.push(reopened);
+    expect(() => reopened.getRepository("repo-1")).toThrowError(
+      expect.objectContaining({ code: "schema_incompatible" })
+    );
   });
 
   it("commits task state and its append-only event together", async () => {

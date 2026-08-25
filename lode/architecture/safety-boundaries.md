@@ -12,13 +12,15 @@ Switchyard may:
 - intentionally cancel that fixed probe, persist sanitized lifecycle evidence, and start a fresh linked probe only after a clean-worktree check;
 - read Claude transcript token-usage fields while discarding content, paths, projects, and session identifiers.
 - initialize private local SQLite state and artifact directories;
-- persist registered repository snapshots and normalized task metadata;
+- validate and persist local-only repository registrations with canonical non-overlapping roots, explicit provider identities, immutable policy ceilings, and literal argv verification definitions;
+- persist normalized task metadata through the storage interface, without task-file intake;
 - commit an allowed task state transition and its append-only event atomically.
 
 Switchyard does not yet:
 
 - dispatch implementation prompts;
 - ingest Markdown/YAML tasks or create M1 worktrees;
+- expose repository registration through a CLI or execute registered verification commands;
 - modify target projects through provider agents;
 - run unattended overnight;
 - scrape browser sessions or undocumented usage panels;

@@ -26,10 +26,12 @@ The initial schema contains:
 
 Foreign keys, state checks, uniqueness constraints, JSON validity checks, and query indexes enforce invariants near the data, including same-task and same-attempt ownership for verification artifacts. Attempt states include the preparing and verifying phases needed by later deterministic recovery. Database triggers reject event updates/deletes and updates/deletes of terminal attempt rows.
 
+Repository policy is parsed as the supported strict version-1 contract on both write and read. Storage exposes lookup by repository ID or alias and deterministic listing. Schema version 1 already contained every normalized repository column needed by the registration slice, so repository registration required no migration.
+
 ## Transaction contract
 
 A new task and its `task.ingested` event commit together. A later legal task transition updates only the expected optimistic revision and inserts a `task.state_changed` event in the same transaction. A stale revision, illegal transition, failed foreign key, or failed event insert leaves both task state and event history unchanged.
 
 JSON is reserved for versioned policy, limits, and event payloads. Task state, revisions, source identity, relationships, and timestamps remain normalized columns. Storage and migration errors expose stable project-owned codes and generic messages rather than underlying SQLite messages or stored values.
 
-This slice does not yet expose task intake, attempt mutation, questions, verification, artifacts, recovery, or CLI workflows. The existing M0 JSON run store remains in place until a later reviewed slice composes lifecycle execution with this database.
+Storage does not validate filesystem or Git identity; callers must use the repository-registration service before persistence. Task intake, attempt mutation, questions, verification execution, artifacts, recovery, and M1 CLI workflows remain unimplemented. The existing M0 JSON run store remains in place until a later reviewed slice composes lifecycle execution with this database.

@@ -8,6 +8,7 @@ import {
   openSync
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { parseRepositoryPolicy } from "../repositories/policy.js";
 import {
   normalizeStorageError,
   StorageError
@@ -128,7 +129,7 @@ function prepareDatabaseFile(path: string): void {
   chmodSync(path, PRIVATE_FILE_MODE);
 }
 
-function serializeVersionedJson(value: VersionedJsonObject): string {
+function serializeVersionedJson<T extends { schemaVersion: number }>(value: T): string {
   if (!Number.isInteger(value.schemaVersion) || value.schemaVersion < 1) {
     throw new StorageError(
       "constraint_violation",
@@ -170,13 +171,22 @@ function parseVersionedJson(serialized: string): VersionedJsonObject {
 }
 
 function repositoryFromRow(row: RepositoryRow): RepositoryRecord {
+  let policy: RepositoryRecord["policy"];
+  try {
+    policy = parseRepositoryPolicy(JSON.parse(row.policy_json) as unknown);
+  } catch {
+    throw new StorageError(
+      "schema_incompatible",
+      "Stored repository policy does not match the supported schema"
+    );
+  }
   return {
     id: row.id,
     alias: row.alias,
     canonicalRoot: row.canonical_root,
     worktreeRoot: row.worktree_root,
     defaultBranch: row.default_branch,
-    policy: parseVersionedJson(row.policy_json),
+    policy,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -304,6 +314,7 @@ export class SqliteStorage implements SwitchyardStorage {
 
   createRepository(input: CreateRepositoryInput): RepositoryRecord {
     try {
+      const policy = parseRepositoryPolicy(input.policy);
       this.database.prepare(`
         INSERT INTO repositories(
           id, alias, canonical_root, worktree_root, default_branch,
@@ -315,7 +326,7 @@ export class SqliteStorage implements SwitchyardStorage {
         input.canonicalRoot,
         input.worktreeRoot,
         input.defaultBranch,
-        serializeVersionedJson(input.policy),
+        serializeVersionedJson(policy),
         input.createdAt,
         input.updatedAt
       );
@@ -331,6 +342,27 @@ export class SqliteStorage implements SwitchyardStorage {
         SELECT * FROM repositories WHERE id = ?
       `).get(id) as RepositoryRow | undefined;
       return row ? repositoryFromRow(row) : null;
+    } catch (error) {
+      throw normalizeStorageError(error, "read");
+    }
+  }
+
+  getRepositoryByAlias(alias: string): RepositoryRecord | null {
+    try {
+      const row = this.database.prepare(`
+        SELECT * FROM repositories WHERE alias = ?
+      `).get(alias) as RepositoryRow | undefined;
+      return row ? repositoryFromRow(row) : null;
+    } catch (error) {
+      throw normalizeStorageError(error, "read");
+    }
+  }
+
+  listRepositories(): RepositoryRecord[] {
+    try {
+      return this.database.prepare(`
+        SELECT * FROM repositories ORDER BY alias, id
+      `).all().map((row) => repositoryFromRow(row as RepositoryRow));
     } catch (error) {
       throw normalizeStorageError(error, "read");
     }
