@@ -7,6 +7,11 @@ interface ProcessObservation {
   state: string;
 }
 
+function isAbsentProcessError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ESRCH";
+}
+
 async function observeProcess(pid: number): Promise<ProcessObservation> {
   if (process.platform === "linux") {
     try {
@@ -18,7 +23,7 @@ async function observeProcess(pid: number): Promise<ProcessObservation> {
         state: state === "Z" ? "zombie" : `linux:${state}`
       };
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (isAbsentProcessError(error)) {
         return { runnable: false, state: "absent" };
       }
       throw error;
@@ -29,7 +34,7 @@ async function observeProcess(pid: number): Promise<ProcessObservation> {
     process.kill(pid, 0);
     return { runnable: true, state: "present" };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ESRCH") {
+    if (isAbsentProcessError(error)) {
       return { runnable: false, state: "absent" };
     }
     throw error;
@@ -59,6 +64,13 @@ async function waitForNoRunnableProcess(
 
 describe("SpawnCommandRunner", () => {
   const runner = new SpawnCommandRunner();
+
+  it.each(["ENOENT", "ESRCH"])(
+    "treats %s as an absent process observation",
+    (code) => {
+      expect(isAbsentProcessError(Object.assign(new Error(), { code }))).toBe(true);
+    }
+  );
 
   it("captures successful output", async () => {
     const result = await runner.run({
