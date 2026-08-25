@@ -12,11 +12,12 @@ Use this index before searching the codebase. Read only the focused documents re
 
 - [Provider identities](architecture/provider-identities.md): default, isolated, and subscription-backed credential routing.
 - [Run lifecycle](architecture/run-lifecycle.md): durable attempts, process termination, sanitized handoffs, and restart gates.
-- [Safety boundaries](architecture/safety-boundaries.md): current M0 permissions, credential rules, and gates for unattended work.
+- [Storage foundation](architecture/storage-foundation.md): private SQLite state, forward-only migrations, optimistic task revisions, and atomic task events.
+- [Safety boundaries](architecture/safety-boundaries.md): current implemented permissions, credential rules, and gates for unattended work.
 
 ## Active plans
 
-- [M0 cancellation and restart](plans/m0-cancellation-restart.md): next implementation milestone and exit criteria.
+- [M0 cancellation and restart](plans/m0-cancellation-restart.md): completed lifecycle foundation and exit criteria.
 
 ## Temporary material
 

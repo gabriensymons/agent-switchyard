@@ -13,7 +13,7 @@ The implementation and tests are the source of truth. If the lode disagrees with
 
 ## Project objective
 
-Agent Switchyard is a local-first, quota-aware scheduler for official subscription-backed coding-agent CLIs. It is currently an M0 feasibility spike; it does not yet dispatch unattended implementation work.
+Agent Switchyard is a local-first, quota-aware scheduler for official subscription-backed coding-agent CLIs. M0 feasibility is complete and the M1 private SQLite storage foundation is underway; it does not yet dispatch unattended implementation work.
 
 ## Development workflow
 
@@ -49,4 +49,4 @@ The `lode/` directory is durable, vendor-neutral project memory.
 
 ## Current next step
 
-M0 provider feasibility and lifecycle verification are complete for the isolated Codex identity and Claude. Review the coherent M0 change set before selecting the next milestone. Unattended dispatch remains disabled until the remaining safety gates—especially scheduling policy for usage confidence and queued operator questions—have their own accepted plan and verification.
+M0 provider feasibility and lifecycle verification are complete for the isolated Codex identity and Claude. Review the M1 storage foundation before beginning task intake, worktree management, or provider execution. Unattended dispatch remains disabled until the remaining safety gates—especially scheduling policy for usage confidence and queued operator questions—have their own accepted plan and verification.
