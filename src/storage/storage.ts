@@ -16,6 +16,8 @@ export interface SwitchyardStorage {
   };
   createRepository(input: CreateRepositoryInput): RepositoryRecord;
   getRepository(id: string): RepositoryRecord | null;
+  getRepositoryByAlias(alias: string): RepositoryRecord | null;
+  listRepositories(): RepositoryRecord[];
   createTask(input: CreateTaskInput): TaskRecord;
   getTask(id: string): TaskRecord | null;
   transitionTask(input: TransitionTaskInput): TaskRecord;

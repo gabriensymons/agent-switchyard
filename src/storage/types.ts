@@ -1,3 +1,5 @@
+import type { RepositoryPolicySnapshot } from "../repositories/policy.js";
+
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue =
   | JsonPrimitive
@@ -29,7 +31,7 @@ export interface RepositoryRecord {
   canonicalRoot: string;
   worktreeRoot: string;
   defaultBranch: string;
-  policy: VersionedJsonObject;
+  policy: RepositoryPolicySnapshot;
   createdAt: string;
   updatedAt: string;
 }
