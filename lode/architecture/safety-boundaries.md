@@ -13,13 +13,13 @@ Switchyard may:
 - read Claude transcript token-usage fields while discarding content, paths, projects, and session identifiers.
 - initialize private local SQLite state and artifact directories;
 - validate and persist local-only repository registrations with canonical non-overlapping roots, explicit provider identities, immutable policy ceilings, and literal argv verification definitions;
-- persist normalized task metadata through the storage interface, without task-file intake;
+- ingest strict local Markdown/YAML task files from an explicit safe root, narrow them against registered policy, and persist immutable exact-byte source revisions in `ingested`;
 - commit an allowed task state transition and its append-only event atomically.
 
 Switchyard does not yet:
 
 - dispatch implementation prompts;
-- ingest Markdown/YAML tasks or create M1 worktrees;
+- transition imported tasks to `ready` or create M1 worktrees;
 - expose repository registration through a CLI or execute registered verification commands;
 - modify target projects through provider agents;
 - run unattended overnight;

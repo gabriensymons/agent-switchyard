@@ -1,6 +1,7 @@
 import type {
   CreateRepositoryInput,
   CreateTaskInput,
+  ImportTaskInput,
   RepositoryRecord,
   TaskEventRecord,
   TaskRecord,
@@ -19,7 +20,9 @@ export interface SwitchyardStorage {
   getRepositoryByAlias(alias: string): RepositoryRecord | null;
   listRepositories(): RepositoryRecord[];
   createTask(input: CreateTaskInput): TaskRecord;
+  importTask(input: ImportTaskInput): TaskRecord;
   getTask(id: string): TaskRecord | null;
+  getTaskBySourceHash(sourceIdentity: string, sourceHash: string): TaskRecord | null;
   transitionTask(input: TransitionTaskInput): TaskRecord;
   eventsForTask(taskId: string): TaskEventRecord[];
 }

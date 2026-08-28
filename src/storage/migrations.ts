@@ -3,6 +3,7 @@ import { StorageError } from "./errors.js";
 
 export interface Migration {
   version: number;
+  requiresForeignKeysDisabled?: boolean;
   up(database: Database.Database): void;
 }
 
@@ -186,6 +187,58 @@ export const migrations: readonly Migration[] = [
     up(database) {
       database.exec(initialSchema);
     }
+  },
+  {
+    version: 2,
+    requiresForeignKeysDisabled: true,
+    up(database) {
+      database.exec(`
+        CREATE TABLE tasks_v2 (
+          id TEXT PRIMARY KEY CHECK (length(id) > 0),
+          schema_version INTEGER NOT NULL CHECK (schema_version > 0),
+          source_path TEXT NOT NULL CHECK (length(source_path) > 0),
+          source_identity TEXT NOT NULL CHECK (length(source_identity) > 0),
+          source_hash TEXT NOT NULL CHECK (length(source_hash) > 0),
+          source_revision INTEGER NOT NULL CHECK (source_revision > 0),
+          repository_id TEXT NOT NULL REFERENCES repositories(id) ON DELETE RESTRICT,
+          title TEXT NOT NULL CHECK (length(title) > 0),
+          objective TEXT NOT NULL CHECK (length(objective) > 0),
+          state TEXT NOT NULL CHECK (state IN (
+            'ingested', 'ready', 'preparing', 'running', 'verifying', 'review',
+            'needs_human', 'failed', 'cancelled', 'interrupted'
+          )),
+          limits_json TEXT NOT NULL CHECK (json_valid(limits_json)),
+          request_json TEXT NOT NULL CHECK (json_valid(request_json)),
+          revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+
+        INSERT INTO tasks_v2(
+          id, schema_version, source_path, source_identity, source_hash,
+          source_revision, repository_id, title, objective, state, limits_json,
+          request_json, revision, created_at, updated_at
+        )
+        SELECT
+          id, schema_version, source_path, 'legacy-path:' || source_path,
+          source_hash, source_revision, repository_id, title, objective, state,
+          limits_json,
+          '{"schemaVersion":1,"kind":"legacy_storage_record"}',
+          revision, created_at, updated_at
+        FROM tasks;
+
+        DROP TABLE tasks;
+        ALTER TABLE tasks_v2 RENAME TO tasks;
+
+        CREATE INDEX tasks_repository_state_idx ON tasks(repository_id, state);
+        CREATE INDEX tasks_source_hash_idx ON tasks(source_hash);
+        CREATE UNIQUE INDEX tasks_source_identity_revision_uq
+          ON tasks(source_identity, source_revision);
+        CREATE UNIQUE INDEX tasks_source_identity_hash_uq
+          ON tasks(source_identity, source_hash)
+          WHERE source_identity NOT LIKE 'legacy-path:%';
+      `);
+    }
   }
 ];
 
@@ -209,27 +262,25 @@ function validateMigrationList(list: readonly Migration[]): void {
   }
 }
 
-export function migrateDatabase(
-  database: Database.Database,
-  appliedAt: string,
-  list: readonly Migration[] = migrations
-): void {
-  validateMigrationList(list);
-  let appliedVersions: number[] = [];
+function appliedMigrationVersions(database: Database.Database): number[] {
   try {
-    if (migrationTableExists(database)) {
-      appliedVersions = database
-        .prepare("SELECT version FROM schema_migrations ORDER BY version")
-        .all()
-        .map((row) => (row as { version: number }).version);
-    }
+    if (!migrationTableExists(database)) return [];
+    return database
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all()
+      .map((row) => (row as { version: number }).version);
   } catch {
     throw new StorageError(
       "schema_incompatible",
       "Switchyard storage schema could not be read"
     );
   }
+}
 
+function validateAppliedVersions(
+  appliedVersions: readonly number[],
+  list: readonly Migration[]
+): void {
   for (const [index, version] of appliedVersions.entries()) {
     if (version !== index + 1 || version > list.length) {
       throw new StorageError(
@@ -238,21 +289,79 @@ export function migrateDatabase(
       );
     }
   }
+}
 
-  for (const migration of list.slice(appliedVersions.length)) {
+export function migrateDatabase(
+  database: Database.Database,
+  appliedAt: string,
+  list: readonly Migration[] = migrations
+): void {
+  validateMigrationList(list);
+
+  for (;;) {
+    const hintedVersions = appliedMigrationVersions(database);
+    validateAppliedVersions(hintedVersions, list);
+    const hintedMigration = list[hintedVersions.length];
+    if (!hintedMigration) return;
+
+    const foreignKeysWereEnabled =
+      database.pragma("foreign_keys", { simple: true }) === 1;
+    const disabledForeignKeys =
+      hintedMigration.requiresForeignKeysDisabled && foreignKeysWereEnabled;
+    let actualMigration: Migration | undefined;
+    let done = false;
+    let retryWithDifferentForeignKeyState = false;
     try {
+      if (disabledForeignKeys) database.pragma("foreign_keys = OFF");
       database.transaction(() => {
-        migration.up(database);
+        const appliedVersions = appliedMigrationVersions(database);
+        validateAppliedVersions(appliedVersions, list);
+        actualMigration = list[appliedVersions.length];
+        if (!actualMigration) {
+          done = true;
+          return;
+        }
+
+        const foreignKeysAreEnabled =
+          database.pragma("foreign_keys", { simple: true }) === 1;
+        if (
+          (actualMigration.requiresForeignKeysDisabled && foreignKeysAreEnabled) ||
+          (!actualMigration.requiresForeignKeysDisabled && disabledForeignKeys)
+        ) {
+          retryWithDifferentForeignKeyState = true;
+          return;
+        }
+
+        actualMigration.up(database);
+        if (
+          actualMigration.requiresForeignKeysDisabled &&
+          (database.pragma("foreign_key_check") as unknown[]).length > 0
+        ) {
+          throw new Error("migration created invalid foreign keys");
+        }
         database.prepare(`
           INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)
-        `).run(migration.version, appliedAt);
+        `).run(actualMigration.version, appliedAt);
       }).immediate();
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof StorageError &&
+        error.code === "schema_incompatible"
+      ) {
+        throw error;
+      }
       throw new StorageError(
         "migration_failed",
-        `Switchyard storage migration ${migration.version} failed`
+        `Switchyard storage migration ${
+          actualMigration?.version ?? hintedMigration.version
+        } failed`
       );
+    } finally {
+      if (disabledForeignKeys) database.pragma("foreign_keys = ON");
     }
+
+    if (done) return;
+    if (retryWithDifferentForeignKeyState) continue;
   }
 }
 

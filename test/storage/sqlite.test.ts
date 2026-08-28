@@ -11,13 +11,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { SqliteStorage } from "../../src/storage/sqlite.js";
+import type { ResolvedTaskRequest } from "../../src/tasks/policy.js";
 import type {
   CreateRepositoryInput,
-  CreateTaskInput
+  CreateTaskInput,
+  ImportTaskInput
 } from "../../src/storage/types.js";
 
 const temporaryRoots: string[] = [];
 const openStores: SqliteStorage[] = [];
+const SOURCE_HASH_A = `sha256:${"a".repeat(64)}`;
+const SOURCE_HASH_D = `sha256:${"d".repeat(64)}`;
 
 async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "switchyard-sqlite-"));
@@ -75,21 +79,60 @@ function repository(
 }
 
 function task(overrides: Partial<CreateTaskInput> = {}): CreateTaskInput {
+  const limits = {
+    schemaVersion: 1,
+    runtimeMinutes: 15,
+    attempts: 1,
+    changedFiles: 4,
+    diffLines: 300,
+    changedFileBytes: 131_072,
+    commandOutputBytes: 524_288
+  };
   return {
     id: "task-1",
     schemaVersion: 1,
     sourcePath: "/intake/task-1.md",
-    sourceHash: "sha256:abc",
+    sourceIdentity: "path:/intake/task-1.md",
+    sourceHash: SOURCE_HASH_A,
     sourceRevision: 1,
     repositoryId: "repo-1",
     title: "Focused task",
     objective: "Prove transactional state and event persistence.",
     state: "ingested",
-    limits: { schemaVersion: 1, attempts: 1 },
+    limits,
+    request: {
+      schemaVersion: 1,
+      kind: "resolved_task_request",
+      repository: { id: "repo-1", alias: "fixture" },
+      title: "Focused task",
+      objective: "Prove transactional state and event persistence.",
+      acceptanceCriteria: ["The storage contract remains atomic."],
+      providerIdentity: "codex-isolated",
+      allowedPaths: ["src/example.ts"],
+      forbiddenPaths: ["generated/**"],
+      verificationCommands: [{
+        id: "test",
+        executable: "npm",
+        args: ["test"],
+        cwd: ".",
+        timeoutMs: 60_000
+      }],
+      limits
+    },
     createdAt: "2026-08-21T00:00:01.000Z",
     updatedAt: "2026-08-21T00:00:01.000Z",
     actor: "switchyard",
     eventPayload: { schemaVersion: 1, sourceRevision: 1 },
+    ...overrides
+  };
+}
+
+function importedTask(overrides: Partial<ImportTaskInput> = {}): ImportTaskInput {
+  const input = { ...task() } as Partial<CreateTaskInput>;
+  delete input.sourceRevision;
+  return {
+    ...(input as ImportTaskInput),
+    eventPayload: { schemaVersion: 1 },
     ...overrides
   };
 }
@@ -259,6 +302,146 @@ describe("SqliteStorage", () => {
     ]);
   });
 
+  it("validates, cross-checks, and freezes resolved task requests", async () => {
+    const { root, store } = await openStorage();
+    store.createRepository(repository());
+    const mismatched = task({
+      limits: {
+        ...(task().limits),
+        attempts: 2
+      }
+    });
+    expect(() => store.createTask(mismatched)).toThrowError(
+      expect.objectContaining({ code: "constraint_violation" })
+    );
+    expect(() => store.createTask(task({
+      request: { schemaVersion: 1, kind: "legacy_storage_record" }
+    }))).toThrowError(expect.objectContaining({ code: "constraint_violation" }));
+    expect(() => store.createTask(task({
+      sourceIdentity: "legacy-path:/intake/task.md"
+    }))).toThrowError(expect.objectContaining({ code: "constraint_violation" }));
+    expect(() => store.createTask(task({
+      sourceHash: "sha256:not-a-hash"
+    }))).toThrowError(expect.objectContaining({ code: "constraint_violation" }));
+    expect(() => store.createTask(task({
+      request: {
+        ...task().request,
+        allowedPaths: ["GENERATED/output.ts"]
+      }
+    }))).toThrowError(expect.objectContaining({ code: "constraint_violation" }));
+    expect(() => store.createTask(task({
+      request: {
+        ...task().request,
+        verificationCommands: [{
+          id: "test",
+          executable: "npm",
+          args: ["test", "--", "unregistered"],
+          cwd: ".",
+          timeoutMs: 60_000
+        }]
+      }
+    }))).toThrowError(expect.objectContaining({ code: "constraint_violation" }));
+
+    const baseRequest = task().request as unknown as ResolvedTaskRequest;
+    const storedRequest = (
+      overrides: Record<string, unknown>
+    ): CreateTaskInput["request"] => ({
+      ...baseRequest,
+      ...overrides
+    }) as unknown as CreateTaskInput["request"];
+    const invalidRequests: CreateTaskInput[] = [
+      task({ title: " ", request: storedRequest({ title: " " }) }),
+      task({ objective: " ", request: storedRequest({ objective: " " }) }),
+      task({
+        request: storedRequest({
+          acceptanceCriteria: [
+            ...baseRequest.acceptanceCriteria,
+            ...baseRequest.acceptanceCriteria
+          ]
+        })
+      }),
+      task({
+        request: storedRequest({
+          verificationCommands: [
+            ...baseRequest.verificationCommands,
+            ...baseRequest.verificationCommands
+          ]
+        })
+      })
+    ];
+    for (const invalid of invalidRequests) {
+      expect(() => store.createTask(invalid)).toThrowError(
+        expect.objectContaining({ code: "constraint_violation" })
+      );
+    }
+
+    const created = store.createTask(task());
+    expect(Object.isFrozen(created.limits)).toBe(true);
+    expect(Object.isFrozen(created.request)).toBe(true);
+    expect(Object.isFrozen(created.request.verificationCommands)).toBe(true);
+    store.close();
+
+    const database = new Database(join(root, "switchyard.sqlite3"));
+    database.prepare(`
+      UPDATE tasks SET request_json = ? WHERE id = ?
+    `).run(JSON.stringify({
+      ...task().request,
+      verificationCommands: [{
+        id: "test",
+        executable: "npm",
+        args: ["test", "--", "tampered"],
+        cwd: ".",
+        timeoutMs: 60_000
+      }]
+    }), "task-1");
+    database.close();
+    const reopened = SqliteStorage.open({ stateRoot: root });
+    openStores.push(reopened);
+    expect(() => reopened.getTask("task-1")).toThrowError(
+      expect.objectContaining({ code: "schema_incompatible" })
+    );
+  });
+
+  it("imports source revisions idempotently and returns historical hashes", async () => {
+    const { store } = await openStorage();
+    store.createRepository(repository());
+
+    const first = store.importTask(importedTask());
+    const same = store.importTask(importedTask({ id: "task-duplicate" }));
+    const second = store.importTask(importedTask({
+      id: "task-2",
+      sourceHash: SOURCE_HASH_D
+    }));
+    const historical = store.importTask(importedTask({
+      id: "task-historical",
+      sourceHash: SOURCE_HASH_A
+    }));
+
+    expect(first).toMatchObject({ id: "task-1", sourceRevision: 1 });
+    expect(same).toEqual(first);
+    expect(second).toMatchObject({ id: "task-2", sourceRevision: 2 });
+    expect(historical).toEqual(first);
+    expect(store.getTaskBySourceHash(
+      "path:/intake/task-1.md",
+      SOURCE_HASH_D
+    )).toEqual(second);
+    expect(store.eventsForTask("task-1")).toHaveLength(1);
+    expect(store.eventsForTask("task-2")).toHaveLength(1);
+    expect(store.getTask("task-duplicate")).toBeNull();
+    expect(store.getTask("task-historical")).toBeNull();
+  });
+
+  it("rolls back an imported task when its event cannot be inserted", async () => {
+    const { store } = await openStorage();
+    store.createRepository(repository());
+
+    expect(() => store.importTask(importedTask({ actor: "" }))).toThrowError(
+      expect.objectContaining({ code: "constraint_violation" })
+    );
+    expect(store.getTask("task-1")).toBeNull();
+    expect(store.eventsForTask("task-1")).toEqual([]);
+  });
+
   it("enforces append-only events and immutable terminal attempts", async () => {
     const { store } = await openStorage();
     store.createRepository(repository());
@@ -316,7 +499,12 @@ describe("SqliteStorage", () => {
     store.createTask(task({
       id: "task-2",
       repositoryId: "repo-2",
-      sourcePath: "/intake/task-2.md"
+      sourcePath: "/intake/task-2.md",
+      sourceIdentity: "path:/intake/task-2.md",
+      request: {
+        ...task().request,
+        repository: { id: "repo-2", alias: "other-fixture" }
+      }
     }));
     const databasePath = store.databasePath;
     store.close();

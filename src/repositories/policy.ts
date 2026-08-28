@@ -103,7 +103,7 @@ const forbiddenCommandWords = new Set([
   "reset"
 ]);
 
-const verificationCommandSchema = z
+export const verificationCommandPolicySchema = z
   .object({
     id: commandIdSchema,
     executable: executableSchema,
@@ -152,7 +152,7 @@ const verificationCommandSchema = z
     }
   });
 
-const limitsSchema = z
+export const repositoryLimitsSchema = z
   .object({
     runtimeMinutes: z.number().int().positive().max(SYSTEM_MAXIMUM_LIMITS.runtimeMinutes),
     attempts: z.number().int().positive().max(SYSTEM_MAXIMUM_LIMITS.attempts),
@@ -176,8 +176,8 @@ export const repositoryPolicySchema = z
     providerIdentities: z.array(z.enum(providerIdentityIds)).min(1).max(
       providerIdentityIds.length
     ),
-    verificationCommands: z.array(verificationCommandSchema).min(1).max(20),
-    limits: limitsSchema
+    verificationCommands: z.array(verificationCommandPolicySchema).min(1).max(20),
+    limits: repositoryLimitsSchema
   })
   .strict()
   .superRefine((policy, context) => {

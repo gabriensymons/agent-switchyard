@@ -42,6 +42,7 @@ export interface TaskRecord {
   id: string;
   schemaVersion: number;
   sourcePath: string;
+  sourceIdentity: string;
   sourceHash: string;
   sourceRevision: number;
   repositoryId: string;
@@ -49,6 +50,7 @@ export interface TaskRecord {
   objective: string;
   state: TaskState;
   limits: VersionedJsonObject;
+  request: VersionedJsonObject;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +60,8 @@ export interface CreateTaskInput extends Omit<TaskRecord, "revision"> {
   actor: string;
   eventPayload: VersionedJsonObject;
 }
+
+export type ImportTaskInput = Omit<CreateTaskInput, "sourceRevision">;
 
 export interface TaskEventRecord {
   sequence: number;

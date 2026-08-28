@@ -16,6 +16,9 @@
 - **Repository policy** — The immutable local-only ceiling for allowed and forbidden paths, explicit provider identities, registered verification commands, and M1 limits.
 - **Run** — A durable lifecycle record for one provider identity and worktree; it contains one or more linked attempts.
 - **Task** — A durable M1 work item whose normalized state uses an optimistic revision and whose mutations are paired with append-only events.
+- **Resolved task request** — The immutable policy-narrowed execution contract persisted at intake, including repository identity, exact paths, registered command definitions, effective limits, objective, and acceptance criteria.
+- **Source identity** — The stable task-source key, either an explicit `id:<value>` or `path:<canonical-absolute-source-path>`.
+- **Source revision** — One immutable exact-byte version under a source identity; changed bytes allocate the next revision while a historical identity-plus-hash is idempotent.
 - **Task event** — An immutable audit record committed in the same SQLite transaction as the task state mutation it describes.
 - **Usage confidence** — Whether a usage signal is exact, estimated, or unknown.
 - **Usage window** — A provider limit period with any trustworthy utilization and reset information available for that period.
